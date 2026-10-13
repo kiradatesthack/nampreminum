@@ -67,6 +67,16 @@ small{opacity:.85;font-weight:500;font-size:12px}details{padding:4px 0}summary{f
 #lcol{left:6px;top:calc(40px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:max-content;max-width:48vw;pointer-events:none}
 #lcol #info{transform:none;text-align:left;max-width:100%;max-height:84px;overflow:hidden}#lcol #ord{width:158px}#lcol #ord .or:nth-child(n+4){display:none}
 @media (max-aspect-ratio:1/1){#lcol{top:calc(54px + env(safe-area-inset-top,0px));max-width:94vw}}
+
+:root{--bs:clamp(26px,7.4vh,30px)}
+#top{background:#3a2616d9;border:2px solid #c98a4b66;border-radius:12px;box-shadow:0 2px 0 #00000055;padding:3px 9px;gap:9px;width:max-content;max-width:calc(100vw - 6*var(--bs) - 5*3px - 22px);left:6px;right:auto;align-items:center;overflow:hidden}
+#top .pl{background:none;border:0;box-shadow:none;padding:0;font-size:12px;border-radius:0}#top #clk{flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis}
+#btns{gap:3px}#btns button{position:relative;border-radius:8px;font-size:calc(var(--bs)*.56)}#btns button::after{content:'';position:absolute;inset:-2px}
+#lcol{top:calc(36px + env(safe-area-inset-top,0px));gap:3px}#lcol #info{font-size:10.5px;padding:2px 7px;border-radius:9px;line-height:1.25;max-height:none}
+#ord .or{padding:2px 6px;font-size:10.5px;border-radius:8px}#lcol #ord{width:140px}
+#joy{width:104px;height:104px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}#knob{left:27px;top:27px}
+#act{min-width:84px;height:56px;border-radius:18px;font-size:13px;bottom:calc(24px + env(safe-area-inset-bottom,0px))}#run{width:44px;height:44px;font-size:19px;bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+#skip{font-size:12px;padding:6px 12px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
 </style></head><body>
 <div id=ui>
 <div id=top><span class=pl id=m></span><span class=pl id=cd></span><span class=pl id=rp></span><span class=pl id=wq></span><span class=pl id=clk></span></div>
@@ -366,7 +376,7 @@ function say(c,k,m){const a=LINES[k];if(!a||!c||!c.g)return;const t=a[Math.rando
 let dbgT=0;function dbgTick(raw){const d=$('#dbg');if(!S.cfg.dbg){if(d.style.display!='none')d.style.display='none';return}dbgT+=raw;if(dbgT<.5)return;dbgT=0;const i=R.info,fps=Math.round(1/Math.max(.001,fe));d.style.display='block';d.textContent='FPS '+fps+' ('+(fe*1000).toFixed(1)+' ms)\nNPC '+CU.length+' khách · '+AG.length+' NV\nDraw '+(i&&i.render?i.render.calls:'?')+' · Tam giác '+(i&&i.render?i.render.triangles:'?')+'\nGeo '+(i&&i.memory?i.memory.geometries:'?')+' · Giao dịch '+S.log.length+'\nAI: '+AG.filter(a=>a.state!='idle').length+' đang làm · hạng '+['Thấp','Vừa','Cao','Ultra'][S.cfg.q]}
 /* ===== Hàng đợi FIFO: chỉ khách đứng đầu được gọi món; trạng thái rõ ràng ===== */
 let cuN=0;const QS_TXT={QUEUING:'Đang xếp hàng',FRONT_OF_QUEUE:'Đứng đầu hàng',ORDERING:'Đang gọi món',WAITING_FOR_PIZZA:'Chờ pizza',PIZZA_READY:'Pizza đã xong',SERVED:'Đã nhận',LEAVING:'Rời hàng'};
-function qHdr(){const h=Q[0];return h?`<div class=or><small>👥 ${Q.length} khách · đang phục vụ: ${QS_TXT[h.qs]||'—'}</small></div>`:''}
+function qHdr(){const h=Q[0];return h?`<div class=or><small>▶ ${QS_TXT[h.qs]||'—'}</small></div>`:''}
 function frontStep(c,dt){if(c.qs=='QUEUING'){c.qs='FRONT_OF_QUEUE';c.ft=0}c.ft+=dt;if(c.qs=='FRONT_OF_QUEUE'&&c.ft>.6){c.qs='ORDERING';c.b.visible=true;c.b.material=bub(c.r.e,0)}else if(c.qs=='ORDERING'&&c.ft>1.6&&Q.slice(0,Q.indexOf(c)).every(x=>x.o)){mkOrder(c);c.qs='WAITING_FOR_PIZZA'}}
 /* ===== Điều phối đầu bếp song song, giá bán tách khỏi lượng khách, nhện, sách thực đơn ===== */
 const slots=()=>Math.max(1,AG.filter(a=>a.job=='chef').length),pmU=()=>Math.pow(1.1,S.up.price);
@@ -507,10 +517,11 @@ openP(PN)});
 
 function rChips(){const av=avail();if(!av.find(r=>r.id==sel))sel='mar';bookDirty();return;const nx=RC.find(r=>r.r>S.rep&&(!r.h||S.cfg.ev));$('#recs').innerHTML=av.map(r=>`<button class="chip${r.id==sel?' on':''}" data-r=${r.id}>${r.e}<small>${fmtK(priceOf(r))}</small></button>`).join('')+(nx?`<button class=chip disabled>🔒<small>⭐${nx.r}</small></button>`:'')}
 let hudT=0,lastRep=-1;
-function hud(){$('#m').textContent='💰 '+fmt(S.m);$('#cd').textContent='🍬 '+S.c;$('#clk').textContent=(S.name||'')+' · Ngày '+dayNum()+' · '+clk()+' · Tầng '+(Math.round(P.y/FH)+1)+(isOpen()?(isPeak()?' 🔥 Cao điểm':' 🟢 Mở'):' 🔴 Đóng')+(S.evd?' '+EVT.find(e=>e[0]==S.evd)[1]:'');$('#skip').style.display=!isOpen()&&run?'block':'none';$('#rp').textContent='⭐ '+S.rep;$('#wq').textContent='👥 '+Q.length+'/'+cap()+' 🧼'+Math.round(S.hy)+(TR.length?' 🗑️'+TR.length:'');
-if(lastRep!=avail().length){lastRep=avail().length;rChips()}const r=rc(sel);let h=`Chọn: ${r.e} ${r.n} · ${fmt(priceOf(r))} (📖 xem công thức)`;
-if(held){const hr=rc(held.id);h+=`<br>✋ ${hr.e} ${held.b?held.b==1?'đã nướng — mang ra quầy':'bị cháy!':held.st<hr.s.length?'cần thêm '+ING[hr.s[held.st]][0]:'sẵn sàng, mang đi nướng'} <button class=b style="padding:2px 8px" id=drop>Bỏ</button>`}
-if(BAG.length)h+='<br>✋ '+BAG.map(p=>{const o=ORD.find(x=>x.id==p.oid);return rc(p.rid).e+rc(p.rid).n.replace('Pizza ','')+(o?'→'+MN[o.c.k]+' #'+o.id:'')}).join('; ')+' <button class=b style="padding:2px 8px" id=rbag>Trả</button>';h+='<br>🍕 '+(SH.length?'Pizza chờ lấy: '+SH.length+' ('+SH.map(p=>rc(p.rid).e+(p.oid?'#'+p.oid:'')).join(' ')+')':'Chưa có pizza');const d=dirty();if(d)h+=`<br>🍽️ Bàn bẩn: ${d} (giảm tiền thưởng)`;$('#info').innerHTML=h;ordHud();const sq=$('#shopcd');if(sq)sq.textContent=cdTxt()}
+function hud(){$('#m').textContent='💰 '+fmt(S.m);$('#cd').textContent='🍬 '+S.c;$('#clk').title=S.name||'';$('#clk').textContent='📅'+dayNum()+' · '+clk()+' · T'+(Math.round(P.y/FH)+1)+(isOpen()?(isPeak()?' 🔥':' 🟢'):' 🔴')+(S.evd?' '+EVT.find(e=>e[0]==S.evd)[1]:'');$('#skip').style.display=!isOpen()&&run?'block':'none';$('#rp').textContent='⭐ '+S.rep;$('#wq').textContent='👥 '+Q.length+'/'+cap()+' 🧼'+Math.round(S.hy)+(TR.length?' 🗑️'+TR.length:'');
+if(lastRep!=avail().length){lastRep=avail().length;rChips()}const r=rc(sel);const pt=[`${r.e} ${r.n.replace('Pizza ','')} ${fmtK(priceOf(r))}`];
+if(held){const hr=rc(held.id);pt.push(`✋ ${hr.e} ${held.b?held.b==1?'đã nướng':'cháy!':held.st<hr.s.length?'cần '+ING[hr.s[held.st]][0]:'sẵn sàng nướng'} <button class=b style="padding:1px 7px" id=drop>Bỏ</button>`)}
+if(BAG.length)pt.push('✋ '+BAG.map(p=>{const o=ORD.find(x=>x.id==p.oid);return rc(p.rid).e+rc(p.rid).n.replace('Pizza ','')+(o?'→'+MN[o.c.k]+' #'+o.id:'')}).join('; ')+' <button class=b style="padding:1px 7px" id=rbag>Trả</button>');
+if(SH.length)pt.push('📥'+SH.length+': '+SH.map(p=>rc(p.rid).e+(p.oid?'#'+p.oid:'')).join(' '));const d=dirty();if(d)pt.push('🍽️'+d);let h=pt.join(' · ');$('#info').innerHTML=h;ordHud();const sq=$('#shopcd');if(sq)sq.textContent=cdTxt()}
 $('#info').addEventListener('click',e=>{if(e.target.id=='drop'){held=null;uh()}else if(e.target.id=='rbag')retBag()});
 /* ===== loop ===== */
 const SK=[new T.Color('#8ec9ff'),new T.Color('#140a24'),new T.Color('#241046'),new T.Color('#5e9a48'),new T.Color('#10241f')];sc.fog=new T.Fog('#8ec9ff',20,60);sc.background=new T.Color();
@@ -537,5 +548,3 @@ applyQ();applyEv();updDeco();applyArea();applyFloors();initBays();applyOvens();u
 $('#ld').style.display='none';const pl=$('#play');pl.style.display='block';pl.textContent=S.name?(S.srv?'▶ Chơi tiếp':'▶ Chơi'):'BẮT ĐẦU KINH DOANH';if(!S.name)$('#mk').style.display='flex';
 pl.addEventListener('click',()=>{aud();if(!S.name){const v=$('#nin').value.trim().replace(/\s+/g,' ');if(v.length<3||v.length>24){$('#nerr').textContent='Tên tiệm cần 3–24 ký tự';return}S.name=v;mkSign();save()}$('#title').style.display='none';run=true;last=performance.now();try{const d=document.documentElement;(d.requestFullscreen?d.requestFullscreen():Promise.resolve()).then(()=>screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape')).catch(()=>{})}catch(e){}if(S.afk&&S.afk.gain>0)openP('afk');else if(S.seenDay!=dayNum()){S.seenDay=dayNum();openP('rpt')}else if(!S.seen){S.seen=1;openP('help')}});
 </script></body></html>
-Cozy Pizza Shop 3D.html
-Displaying Cozy Pizza Shop 3D.html.
