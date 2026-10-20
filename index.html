@@ -1667,6 +1667,149 @@ return{init,tick,walk,PLACES,WDOORS,lock:LOCKF,evMul,takeSeeker,wdCheck,wldHTML,
  for(const lx of[-3.2,0,3.2]){bx(g,.04,.9,.04,'#555',lx,3.55,-1.6);bx(g,.7,.3,.7,'#c8883a',lx,3.0,-1.6);bx(g,.5,.08,.5,'#fff2b0',lx,2.84,-1.6,1)}
  bx(g,.9,.9,.08,'#5a3a1e',0,2.55,-5.45);bx(g,.74,.74,.04,'#fff6dc',0,2.55,-5.4);bx(g,.05,.28,.03,'#222',0,2.62,-5.37);bx(g,.2,.05,.03,'#222',.08,2.55,-5.37);
 })();
+/* ===== MODULE 17: NEON PALACE CASINO — sòng bạc tiền ảo kèm cảnh báo cờ bạc =====
+   Chỉ dùng tiền ảo trong game (S.m). Mọi lượt: trừ cược NGAY (đồng bộ) → tính kết quả bằng logic/RNG → cộng thưởng → lưu một lần; hiệu ứng chỉ hiển thị sau đó,
+   nên tải lại trang giữa chừng không nhân đôi tiền. Blackjack lưu ván dở trong S.cas.bj. Ghi vào "Nhật ký giao dịch" chung (logTx), không có số dư thứ hai. */
+const CASD={min:10000,bets:[10000,50000,100000,500000,1000000],hmax:60,lims:[0,100000,500000,1000000,5000000]};
+const CSYM=['🍒','🍋','🍉','🔔','⭐','7️⃣'],CW=[30,25,20,15,8,2],CPAY=[8,10,15,30,80,200],CTWO=1.5;
+const cSlotRTP=()=>{let r=0;for(let a=0;a<6;a++)for(let b=0;b<6;b++)for(let c=0;c<6;c++){const p=CW[a]*CW[b]*CW[c]/1e6;let m=0;if(a==b&&b==c)m=CPAY[a];else if([a,b,c].filter(x=>x==0).length==2)m=CTWO;r+=p*m}return r};
+const CRED=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+function cRnd(n){try{const cr=window.crypto||window.msCrypto;if(cr&&cr.getRandomValues){const a=new Uint32Array(1),lim=Math.floor(4294967296/n)*n;let x;do{cr.getRandomValues(a);x=a[0]}while(x>=lim);return x%n}}catch(e){}return Math.floor(Math.random()*n)}
+function cas(){if(!S.cas||typeof S.cas!='object'){if(S.name){try{if(!localStorage.getItem(KEY+'_bakcas'))localStorage.setItem(KEY+'_bakcas',localStorage.getItem(KEY)||'')}catch(e){}}S.cas={}}
+ const c=S.cas;if(c.v==null){Object.assign(c,{v:1,hist:[],wag:0,won:0,rounds:0,lim:0,block:0,crisis:0,cr:0,seen:0,rwd:0,met:0,rq:null,bj:null,last:null,sess:{wag:0,net:0}})}
+ if(!Array.isArray(c.hist))c.hist=[];if(!c.sess)c.sess={wag:0,net:0};return c}
+const CS={tab:'lobby',bet:CASD.bets[1],rb:'red',busy:0,arm:'',note:'',spin:null};
+/* ---- giao dịch ---- */
+function cLog(k,t,dl){const c=cas();c.hist.unshift({k,t,dl,bal:S.m,day:dayNum()});if(c.hist.length>CASD.hmax)c.hist.length=CASD.hmax;try{logTx(dl,'Sòng bạc: '+t)}catch(e){}}
+function cBetCheck(b){const c=cas();if(c.block)return'Bạn đang bật chế độ chặn cờ bạc (tắt ở tab Cài đặt).';if(c.crisis)return'Đang trong giai đoạn phục hồi: không thể đặt cược cho tới khi hoàn thành "Làm Lại Từ Đầu".';
+ if(!CASD.bets.includes(b))return'Mức cược không hợp lệ.';if(!(S.m>=b))return'Không đủ số dư để cược '+fmt0(b)+'.';
+ if(c.lim>0&&Math.max(0,-c.sess.net)+b>c.lim)return'Chạm giới hạn thua bạn tự đặt ('+fmt0(c.lim)+'/phiên). Hãy rời đi nghỉ ngơi.';return''}
+function cTake(b,txt){const c=cas();S.m-=b;c.wag+=b;c.sess.wag+=b;c.sess.net-=b;c.rounds++;cLog('bet',txt+' — cược',-b)}
+function cPay(p,txt){if(p<=0)return;const c=cas();S.m+=p;c.won+=p;c.sess.net+=p;cLog('win',txt+' — thắng',p)}
+function cAfter(){const c=cas();if(!c.crisis&&!(c.bj&&!c.bj.done)&&S.m<CASD.min&&c.last&&c.last.pay<c.last.bet){c.crisis=1;c.cr=(c.cr||0)+1;c.rq={step:0,srv0:S.srv|0,led:0};try{save()}catch(e){}setTimeout(()=>casWarn(),1100)}else{try{save()}catch(e){}}}
+/* ---- SLOT ---- */
+function slotPick(){let r=cRnd(100),i=0;while(r>=CW[i]){r-=CW[i];i++}return i}
+function slotSpin(){const c=cas(),err=cBetCheck(CS.bet);if(err){CS.note=err;return}if(CS.busy)return;const b=CS.bet;cTake(b,'Slot');
+ const r=[slotPick(),slotPick(),slotPick()];let m=0;if(r[0]==r[1]&&r[1]==r[2])m=CPAY[r[0]];else if(r.filter(x=>x==0).length==2)m=CTWO;const pay=Math.round(b*m);cPay(pay,'Slot '+r.map(i=>CSYM[i]).join(''));
+ c.last={g:'slot',r,bet:b,pay};CS.note='';CS.busy=1;CS.spin='slot';cAfter();sfx(300,.08);openP('cas');setTimeout(()=>{CS.busy=0;CS.spin=null;sfx(pay>0?880:200,.12);if(PN=='cas')openP('cas')},550)}
+/* ---- ROULETTE (châu Âu, 37 ô) ---- */
+const RB={red:['Đỏ',2],black:['Đen',2],odd:['Lẻ',2],even:['Chẵn',2],low:['1–18',2],high:['19–36',2],d1:['Tá 1 (1–12)',3],d2:['Tá 2 (13–24)',3],d3:['Tá 3 (25–36)',3]};
+function rltWin(k,n){if(k[0]=='n')return n==+k.slice(2);if(n==0)return false;switch(k){case'red':return CRED.has(n);case'black':return !CRED.has(n);case'odd':return n%2==1;case'even':return n%2==0;case'low':return n<=18;case'high':return n>=19;case'd1':return n<=12;case'd2':return n>=13&&n<=24;case'd3':return n>=25}return false}
+function rltSpin(){const c=cas(),err=cBetCheck(CS.bet);if(err){CS.note=err;return}if(CS.busy)return;const k=CS.rb;if(!(RB[k]||/^n:(\d|[1-2]\d|3[0-6])$/.test(k))){CS.note='Chưa chọn ô cược.';return}
+ const b=CS.bet;cTake(b,'Roulette');const n=cRnd(37),w=rltWin(k,n),m=k[0]=='n'?36:RB[k][1],pay=w?b*m:0;cPay(pay,'Roulette ra '+n);c.last={g:'rlt',n,k,bet:b,pay};CS.note='';CS.busy=1;CS.spin='rlt';cAfter();sfx(260,.08);openP('cas');setTimeout(()=>{CS.busy=0;CS.spin=null;sfx(pay>0?880:200,.12);if(PN=='cas')openP('cas')},700)}
+/* ---- BLACKJACK (1 bộ bài/ván, nhà cái đứng từ 17, BJ trả 3:2, không chia/gấp đôi) ---- */
+const CR=['A','2','3','4','5','6','7','8','9','10','J','Q','K'],CSU=['♠','♥','♦','♣'];
+const cardV=r=>r=='A'?11:(r=='J'||r=='Q'||r=='K')?10:+r;
+function hv(h){let s=0,a=0;for(const x of h){s+=cardV(x[0]);if(x[0]=='A')a++}while(s>21&&a>0){s-=10;a--}return s}
+function bjDraw(bj){for(let t=0;t<200;t++){const x=[CR[cRnd(13)],CSU[cRnd(4)]];if(!bj.p.concat(bj.d).some(y=>y[0]==x[0]&&y[1]==x[1]))return x}return['2','♠']}
+function bjDeal(){const c=cas(),err=cBetCheck(CS.bet);if(err){CS.note=err;return}if(c.bj&&!c.bj.done)return;const b=CS.bet;cTake(b,'Blackjack');const bj={bet:b,p:[],d:[],done:0,res:''};bj.p.push(bjDraw(bj));bj.d.push(bjDraw(bj));bj.p.push(bjDraw(bj));bj.d.push(bjDraw(bj));c.bj=bj;CS.note='';
+ if(hv(bj.p)==21||hv(bj.d)==21)bjEnd('natural');else{try{save()}catch(e){}}openP('cas')}
+function bjEnd(why){const c=cas(),bj=c.bj;if(!bj||bj.done)return;const pv=hv(bj.p),dv=hv(bj.d);let pay=0,res='';
+ if(why=='natural'){if(pv==21&&dv==21){pay=bj.bet;res='Hòa (cả hai Blackjack)'}else if(pv==21){pay=Math.round(bj.bet*2.5);res='Blackjack! Trả 3:2'}else{res='Nhà cái Blackjack'}}
+ else if(pv>21){res='Bạn quắc (>21)'}else{while(hv(bj.d)<17)bj.d.push(bjDraw(bj));const d2=hv(bj.d);if(d2>21||pv>d2){pay=bj.bet*2;res=d2>21?'Nhà cái quắc — bạn thắng':'Bạn thắng '+pv+' vs '+d2}else if(pv==d2){pay=bj.bet;res='Hòa '+pv}else res='Nhà cái thắng '+d2+' vs '+pv}
+ bj.done=1;bj.res=res;bj.pay=pay;cPay(pay,'Blackjack: '+res);c.last={g:'bj',bet:bj.bet,pay};cAfter()}
+function bjHit(){const c=cas(),bj=c.bj;if(!bj||bj.done)return;bj.p.push(bjDraw(bj));if(hv(bj.p)>=21)bjEnd(hv(bj.p)>21?'bust':'stand');else{try{save()}catch(e){}}openP('cas')}
+function bjStand(){const c=cas();if(!c.bj||c.bj.done)return;bjEnd('stand');openP('cas')}
+/* ---- GIAO DIỆN (panel 'cas') ---- */
+TTL.cas='🎰 Neon Palace Casino';
+const cTabs=[['lobby','🏛️ Sảnh'],['slot','🎰 Slot'],['rlt','🎡 Roulette'],['bj','🃏 Blackjack'],['hist','📜 Lịch sử'],['set','⚙️ Cài đặt'],['info','ℹ️ Luật'],['rq','🌱 Phục hồi']];
+const cBtn=(a,t,x)=>`<button class=b data-cas="${a}"${x||''}>${t}</button>`;
+function cBetRow(){return '<div class=qs style="flex-wrap:wrap;margin:6px 0">'+CASD.bets.map(b=>`<button class=b data-cas="bet:${b}" style="${CS.bet==b?'background:#ffd54a;color:#3a2410':''}">${fmt0(b)}</button>`).join('')+'</div>'}
+function cCard(x){return `<span style="display:inline-block;background:#fff;color:${x[1]=='♥'||x[1]=='♦'?'#c00':'#111'};border-radius:5px;padding:3px 6px;margin:2px;font-weight:700">${x[0]}${x[1]}</span>`}
+function casHTML(){const c=cas();let h='<div class=qs style="flex-wrap:wrap;gap:4px;margin-bottom:6px">'+cTabs.filter(t=>t[0]!='rq'||c.crisis||c.rq).map(t=>`<button class=b data-cas="tab:${t[0]}" style="padding:4px 8px;${CS.tab==t[0]?'background:#ffd54a;color:#3a2410':''}">${t[1]}</button>`).join('')+'</div>';
+ h+=`<small>💰 Số dư: <b>${fmt0(S.m)}</b> · Tiền ảo của game — không quy đổi ra tiền thật · Phiên này: ${c.sess.net>=0?'+':'−'}${fmt0(Math.abs(c.sess.net))}</small>`;
+ if(CS.note)h+=`<div class=row style="background:#5a2a2a"><b>⚠️ ${esc(CS.note)}</b></div>`;
+ const lock=c.block?'Chế độ chặn cờ bạc đang BẬT — các trò cược bị khóa (vào Cài đặt để tắt).':c.crisis?'Bạn đang trong giai đoạn phục hồi — trò cược bị khóa. Mở tab Phục hồi.':'';
+ const T=CS.tab;
+ if(T=='lobby'){h+=`<div class=row><b>Chào mừng đến Neon Palace</b><small>Mọi trò chơi dùng <b>tiền ảo</b> của game. Mỗi lượt có thể thắng hoặc thua; nhà cái luôn có lợi thế, về lâu dài người chơi thua nhiều hơn thắng. Bạn có thể rời đi bất cứ lúc nào mà không bị phạt.</small></div>
+ <div class=row><b>Tổng cược: ${fmt0(c.wag)} · Tổng thắng: ${fmt0(c.won)}</b><small>${c.wag>c.won?'Chênh lệch từ đầu: −'+fmt0(c.wag-c.won):'Chênh lệch từ đầu: +'+fmt0(c.won-c.wag)} · ${c.rounds} lượt</small></div>`+(c.rounds>=12&&c.wag>c.won?`<div class=row><small>💭 ${esc(casThought())}</small></div>`:'')+(lock?`<div class=row><small>🔒 ${lock}</small></div>`:'');}
+ else if(T=='slot'){const L=c.last&&c.last.g=='slot'?c.last:null;h+=`<div class=row><b>🎰 Slot</b><small>Hoàn trả lý thuyết ≈ ${(cSlotRTP()*100).toFixed(1)}% (nhà cái giữ ≈ ${(100-cSlotRTP()*100).toFixed(1)}%)</small><div style="font-size:42px;text-align:center;letter-spacing:6px;margin:6px 0">${CS.spin=='slot'?'🎰 🎰 🎰':L?L.r.map(i=>CSYM[i]).join(' '):'❔ ❔ ❔'}</div>${L&&CS.spin!='slot'?`<small>Lượt vừa rồi: cược ${fmt0(L.bet)} → ${L.pay>0?'nhận '+fmt0(L.pay):'không trúng'}</small>`:''}</div>`+cBetRow()+(lock?`<small>🔒 ${lock}</small>`:cBtn('spin:slot','QUAY',CS.busy?' disabled':''));}
+ else if(T=='rlt'){const L=c.last&&c.last.g=='rlt'?c.last:null;h+=`<div class=row><b>🎡 Roulette châu Âu (0–36)</b><small>Cược ngoài trả 1:1 (Tá 2:1), số đơn 35:1; ô 0 thua mọi cược ngoài. Lợi thế nhà cái 2,7%.</small><div style="font-size:38px;text-align:center;margin:6px 0">${CS.spin=='rlt'?'🎡 …':L?(L.n+(L.n==0?' 🟢':CRED.has(L.n)?' 🔴':' ⚫')):'—'}</div>${L&&CS.spin!='rlt'?`<small>Lượt vừa rồi: cược ${fmt0(L.bet)} → ${L.pay>0?'nhận '+fmt0(L.pay):'không trúng'}</small>`:''}</div><div class=qs style="flex-wrap:wrap;gap:4px">`+Object.keys(RB).map(k=>`<button class=b data-cas="rb:${k}" style="padding:4px 8px;${CS.rb==k?'background:#ffd54a;color:#3a2410':''}">${RB[k][0]}</button>`).join('')+'</div><div class=qs style="flex-wrap:wrap;gap:3px;margin-top:4px">'+[...Array(37).keys()].map(n=>`<button class=b data-cas="rb:n:${n}" style="padding:2px 6px;min-width:30px;color:${n==0?'#7f7':CRED.has(n)?'#f88':'#ddd'};${CS.rb=='n:'+n?'background:#ffd54a;color:#3a2410':''}">${n}</button>`).join('')+'</div>'+`<small>Ô đã chọn: <b>${CS.rb[0]=='n'?'Số '+CS.rb.slice(2):RB[CS.rb]?RB[CS.rb][0]:'—'}</b></small>`+cBetRow()+(lock?`<small>🔒 ${lock}</small>`:cBtn('spin:rlt','QUAY',CS.busy?' disabled':''));}
+ else if(T=='bj'){const bj=c.bj;h+=`<div class=row><b>🃏 Blackjack</b><small>Gần 21 hơn nhà cái mà không quá 21 là thắng (1:1). Blackjack trả 3:2. Nhà cái rút tới khi đạt 17 trở lên. Hòa thì hoàn cược. Không chia bài/gấp đôi. Mỗi ván dùng 1 bộ bài.</small></div>`;
+  if(bj){const show=bj.done;h+=`<div class=row><b>Nhà cái ${show?hv(bj.d):'?'}</b><div>${bj.d.map((x,i)=>show||i==0?cCard(x):'<span style="display:inline-block;background:#6a3a8a;border-radius:5px;padding:3px 10px;margin:2px">🂠</span>').join('')}</div><b>Bạn ${hv(bj.p)}</b><div>${bj.p.map(cCard).join('')}</div><small>Cược: ${fmt0(bj.bet)}${bj.done?' · '+esc(bj.res)+(bj.pay>0?' · nhận '+fmt0(bj.pay):''):''}</small></div>`+(bj.done?(lock?`<small>🔒 ${lock}</small>`:cBetRow()+cBtn('deal','CHIA VÁN MỚI')):cBtn('hit','RÚT BÀI')+' '+cBtn('stand','DỪNG'))}
+  else h+=(lock?`<small>🔒 ${lock}</small>`:cBetRow()+cBtn('deal','CHIA BÀI'))}
+ else if(T=='hist'){h+=`<div class=row><b>Tổng cược ${fmt0(c.wag)} · Tổng thắng ${fmt0(c.won)}</b><small>${c.hist.length?'':'Chưa có giao dịch.'}</small></div>`+c.hist.slice(0,30).map(x=>`<div class=row><small>Ngày ${x.day} · ${esc(x.t)}: <b style="color:${x.dl<0?'#f88':'#8f8'}">${x.dl<0?'−':'+'}${fmt0(Math.abs(x.dl))}</b> → ${fmt0(x.bal)}</small></div>`).join('');if(c.rq&&c.rq.step==1&&!c.rq.led){c.rq.led=1;try{save()}catch(e){}}}
+ else if(T=='set'){h+=`<div class=row><b>Giới hạn thua mỗi phiên (tự đặt)</b><small>Khi tổng thua trong phiên + cược tiếp theo vượt mức này, trò chơi dừng nhận cược. Đổi/ gỡ giới hạn cần bấm xác nhận.</small><div class=qs style="flex-wrap:wrap;gap:4px">${CASD.lims.map(l=>cBtn('lim:'+l,l?fmt0(l):'Không giới hạn',c.lim==l?' style="background:#ffd54a;color:#3a2410"':'')).join('')}</div></div>
+ <div class=row><b>Chế độ chặn cờ bạc: ${c.block?'ĐANG BẬT 🔒':'đang tắt'}</b><small>Khi bật, mọi trò cược bị khóa; vẫn dùng được các phần khác của game. ${c.block?'Tắt cần bấm xác nhận.':''}</small>${cBtn('block',c.block?'Tắt chế độ chặn':'BẬT chế độ chặn')}</div>
+ <div class=row><b>🆘 Tìm kiếm sự hỗ trợ</b><small>Nếu bạn hoặc người thân khó kiểm soát việc đánh bạc: hãy nói chuyện với người bạn tin tưởng và tìm đến chuyên gia sức khỏe tâm thần hoặc dịch vụ hỗ trợ vấn đề cờ bạc tại nơi bạn sống. Game không đưa số điện thoại vì không thể xác minh dịch vụ nào đang hoạt động tại địa phương bạn. Xem phim cảnh báo hoặc trang dấu hiệu bên dưới; không cần cung cấp thông tin cá nhân nào.</small>${cBtn('warn','🎬 Xem lại cảnh báo')} ${cBtn('signs','📋 Dấu hiệu nghiện cờ bạc')}</div>`}
+ else if(T=='info'){h+=`<div class=row><b>Luật & tỷ lệ</b><small>• Tiền ảo, không nạp/rút tiền thật. • Kết quả sinh bằng bộ số ngẫu nhiên của trình duyệt (crypto), không có "sắp thắng" hay quy luật nào để đoán. • Slot: 3 cuộn, trọng số 🍒30 🍋25 🍉20 🔔15 ⭐8 7️⃣2 (%); 3 giống nhau trả ${CSYM.map((s,i)=>s+'×'+CPAY[i]).join(' ')}; 2 quả 🍒 trả ×${CTWO}. Hoàn trả lý thuyết ${(cSlotRTP()*100).toFixed(2)}%. • Roulette châu Âu: 37 ô, hoàn trả lý thuyết 97,3%. • Blackjack: luật ở tab Blackjack. • Mỗi lượt kiểm tra số dư, mức cược hợp lệ và giới hạn bạn đặt. • Về lâu dài, người chơi thua nhiều hơn thắng.</small></div>`}
+ else if(T=='rq'){h+=rqHTML()}
+ return h}
+function casThought(){const c=cas(),L=c.wag-c.won;const a=['Chỉ một ván nữa thôi… — nhưng bạn có thể dừng ngay bây giờ.','Cảm giác "muốn gỡ lại" rất dễ khiến thua nhiều hơn. Bạn đã thua '+fmt0(L)+'.','Mỗi ván đều độc lập, ván tới không "bù" cho ván trước. Nghỉ một chút thì sao?'];return a[Math.min(2,Math.floor(c.rounds/12))%3]}
+PNL.cas=casHTML;
+function casClick(D){const c=cas(),a=D.cas,p=a.split(':');const k=p[0];
+ if(k=='tab'){CS.tab=p[1];CS.note='';CS.arm=''}
+ else if(k=='bet'){CS.bet=+p[1]}
+ else if(k=='spin'){if(p[1]=='slot')slotSpin();else rltSpin();return true}
+ else if(k=='rb'){CS.rb=p[1]=='n'?'n:'+p[2]:p[1]}
+ else if(k=='deal'){bjDeal();return true}else if(k=='hit'){bjHit();return true}else if(k=='stand'){bjStand();return true}
+ else if(k=='lim'){const l=+p[1],key='lim'+l;if(CS.arm!=key){CS.arm=key;CS.note='Chạm lần nữa để xác nhận giới hạn '+(l?fmt0(l):'"không giới hạn"')}else{c.lim=l;CS.arm='';CS.note='';toast('✅ Đã đặt giới hạn thua mỗi phiên')}}
+ else if(k=='block'){if(CS.arm!='blk'){CS.arm='blk';CS.note=c.block?'Chạm lần nữa để TẮT chế độ chặn':'Chạm lần nữa để BẬT chế độ chặn'}else{c.block=c.block?0:1;CS.arm='';CS.note='';toast(c.block?'🔒 Đã bật chế độ chặn cờ bạc':'🔓 Đã tắt chế độ chặn')}}
+ else if(k=='warn'){closeP();casWarn(1);return true}else if(k=='signs'){closeP();casWarn(1,'signs');return true}
+ else if(k=='rq'){rqAct(p[1]);return true}
+ try{save()}catch(e){}openP('cas');return true}
+/* ---- HOẠT CẢNH CẢNH BÁO (overlay 2D, có phụ đề, nút Bỏ qua & Xem lại) ---- */
+const CWS=[{c:'#0a0610',t:['BẠN ĐÃ MẤT TẤT CẢ.','Số dư còn lại: %M','TRONG GAME, BẠN CÓ THỂ CHƠI LẠI.','NHƯNG NGOÀI ĐỜI THỰC, TIỀN ĐÃ MẤT CÓ THỂ KHÔNG LẤY LẠI ĐƯỢC.'],ic:'🎰'},
+ {c:'#0e1620',t:['%B','“Cờ bạc có thể bắt đầu từ một lần thử. Nhưng việc liên tục cược để gỡ lại số tiền đã mất có thể khiến tổn thất ngày càng lớn.”','“Khi mất kiểm soát, cờ bạc có thể ảnh hưởng đến tài chính, sức khỏe tinh thần, công việc và những mối quan hệ quan trọng.”'],ic:'📱'},
+ {c:'#000',t:['ĐỪNG ĐỂ CỜ BẠC KIỂM SOÁT CUỘC SỐNG CỦA BẠN.','Không có ván cược nào bảo đảm bạn sẽ lấy lại được tiền đã mất.','Đừng vay tiền để tiếp tục cược. Đừng cố gỡ bằng một ván nữa.'],ic:'✋'},
+ {c:'#0a0a12',t:['ĐÂY CHỈ LÀ GAME. HẬU QUẢ NGOÀI ĐỜI LÀ THẬT.','Nếu bạn hoặc người thân đang gặp khó khăn vì cờ bạc, hãy dừng lại, nói chuyện với người mà bạn tin tưởng và tìm đến dịch vụ hỗ trợ phù hợp tại nơi bạn sống. Bạn không cần phải đối mặt với điều đó một mình.'],ic:'💬'}];
+let cwTm=null,cwOpen=0;
+function casWarn(replay,mode){if(cwOpen&&!mode)return;cwOpen=1;let ov=$('#cw');if(!ov){ov=document.createElement('div');ov.id='cw';ov.style.cssText='position:fixed;inset:0;z-index:9998;background:#000;color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:14px;text-align:center;font-family:inherit';document.body.appendChild(ov)}
+ ov.style.display='flex';const c=cas();let i=0;const done=()=>{clearTimeout(cwTm);cwTm=null};
+ const fin=()=>{done();ov.innerHTML=`<div style="font-size:19px;font-weight:700;max-width:560px">ĐỪNG ĐỂ MỘT VÁN CƯỢC LẤY ĐI CẢ TƯƠNG LAI.</div><div style="max-width:560px;font-size:13px;opacity:.85">Cờ bạc không phải con đường làm giàu. Nếu việc đánh bạc đang vượt khỏi tầm kiểm soát, hãy dừng lại và tìm kiếm sự hỗ trợ từ người đáng tin cậy hoặc dịch vụ hỗ trợ phù hợp tại nơi bạn sống.</div><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">${c.crisis?'<button class=b id=cwA>Bắt đầu hành trình phục hồi</button>':''}<button class=b id=cwB>Tôi hiểu thông điệp — rời khỏi sòng bạc</button><button class=b id=cwC>Tìm hiểu dấu hiệu nghiện cờ bạc</button><button class=b id=cwD>Xem lại cảnh báo</button></div>`;c.seen=(c.seen|0)+1;try{save()}catch(e){}
+  const q=id=>ov.querySelector(id);const A=q('#cwA');if(A)A.onclick=()=>{close();CS.tab='rq';openP('cas')};q('#cwB').onclick=()=>{close();P.x=-21;P.z=7.4;toast('Bạn đã rời khỏi sòng bạc.')};q('#cwC').onclick=()=>signs();q('#cwD').onclick=()=>{cwOpen=0;casWarn(1)}};
+ const close=()=>{done();ov.style.display='none';ov.innerHTML='';cwOpen=0};
+ const signs=()=>{done();ov.innerHTML=`<div style="font-size:18px;font-weight:700">📋 Dấu hiệu đáng lưu ý</div><div style="max-width:560px;font-size:14px;text-align:left;line-height:1.5">• Thường xuyên nghĩ đến việc đánh bạc.<br>• Liên tục tăng tiền cược hoặc cố gỡ lại tiền đã mất.<br>• Vay tiền, che giấu việc đánh bạc hoặc bỏ bê trách nhiệm.<br>• Khó dừng lại dù đã gặp hậu quả tiêu cực.<br><small style="opacity:.8">Danh sách chỉ nhằm nâng cao nhận thức, không thay thế đánh giá của chuyên gia. Không phải ai từng chơi cờ bạc cũng bị nghiện; và chỉ riêng ý chí chưa chắc đủ — nói chuyện với người bạn tin tưởng và tìm sự hỗ trợ chuyên môn ở nơi bạn sống là bước tốt.</small></div><button class=b id=cwX>Quay lại</button>`;ov.querySelector('#cwX').onclick=()=>fin()};
+ if(mode=='signs'){signs();return}
+ const step=()=>{if(i>=CWS.length){fin();return}const sc=CWS[i++];ov.style.background=sc.c;const bills=()=>{const w=typeof wageTotal=='function'?wageTotal():0;return '📱 Thông báo từ tiệm: lương nhân viên mỗi ngày '+fmt0(w)+(S.debt>0?' · nợ lương hiện tại '+fmt0(S.debt):'')+' · tiền mặt còn '+fmt0(S.m)};
+  const lines=sc.t.map(x=>x.replace('%M',fmt0(S.m)).replace('%B',bills()));ov.innerHTML=`<button id=cwS style="position:absolute;top:8px;right:8px;background:#0008;color:#fff;border:1px solid #fff8;border-radius:16px;padding:8px 14px;font:inherit;font-size:14px">Bỏ qua ⏭</button><div style="font-size:54px;opacity:.9">${sc.ic}</div>`+lines.map((l,k)=>`<div style="max-width:600px;font-size:${k==0?19:14}px;font-weight:${k==0?700:400};opacity:0;transition:opacity 1.2s ${k*1.4}s" class=cwl>${esc(l)}</div>`).join('');
+  ov.querySelector('#cwS').onclick=()=>fin();requestAnimationFrame(()=>requestAnimationFrame(()=>ov.querySelectorAll('.cwl').forEach(e=>e.style.opacity=1)));sfx(120+i*20,.4);cwTm=setTimeout(step,Math.max(6500,lines.length*1700+2500))};
+ if(CS&&PN=='cas')closeP();step()}
+/* ---- PHỤC HỒI "Làm Lại Từ Đầu" (điều kiện dựa trên số liệu thật của game) ---- */
+function rqState(){const c=cas(),q=c.rq||{step:0,srv0:S.srv|0,led:0};const s=[!!c.met,!!q.led,(S.srv|0)-(q.srv0|0)>=5,S.m>=200000];return{q,s,all:s.every(x=>x)}}
+function rqHTML(){const c=cas();if(!c.rq&&!c.crisis)return '<div class=row><small>Chưa cần dùng tới. Tuyến này chỉ mở khi bạn mất sạch tiền ở sòng bạc.</small></div>';const{q,s,all}=rqState();const L=['Nói chuyện với cố vấn tài chính ông Sáu (đứng ngay trước sòng bạc)','Xem lại lịch sử thu chi (tab 📜 Lịch sử)','Phục vụ thêm 5 khách trong tiệm ('+Math.max(0,Math.min(5,(S.srv|0)-(q.srv0|0)))+'/5)','Dành dụm tối thiểu 200.000đ tiền mặt (hiện '+fmt0(S.m)+')'];
+ return `<div class=row><b>🌱 Làm Lại Từ Đầu</b><small>Ổn định tài chính bằng công việc hợp pháp trong tiệm. Trong lúc này các trò cược bị khóa. Không có khoản vay nào để tiếp tục cược; lương nhân viên và nợ lương vẫn theo quy tắc cũ của game (nợ lương hiện tại: ${fmt0(S.debt||0)}).</small></div>`+L.map((t,i)=>`<div class=row><small>${s[i]?'✅':'⬜'} ${t}</small></div>`).join('')+(q.done?'<div class=row><small>🎉 Bạn đã hoàn thành tuyến phục hồi.</small></div>':all?cBtn('rq:claim','Hoàn thành & nhận thưởng'):'')}
+function rqAct(a){const c=cas();if(a=='claim'){const r=rqState();if(!c.crisis||!r.all||(c.rq&&c.rq.done))return;c.crisis=0;c.rq.done=1;if(!c.rwd){c.rwd=1;S.m+=50000;try{logTx(50000,'Thưởng hoàn thành "Làm Lại Từ Đầu" (một lần)')}catch(e){}toast('🌱 Phục hồi xong! +50.000đ (chỉ nhận một lần)')}else toast('🌱 Phục hồi xong! Trò chơi được mở lại — nhớ chơi có chừng mực.');try{save()}catch(e){}openP('cas')}}
+/* ---- THẾ GIỚI 3D: tòa nhà bên trái tiệm ---- */
+const CASX0=-27,CASX1=-15,CASZ0=-6,CASZ1=6,casWalkIn=(x,z)=>x>=-26.5&&x<=-15.5&&z>-5.5&&z<5.9,
+ casWalk=(x,z)=>casWalkIn(x,z)||(x>=-22.1&&x<=-19.9&&z>=5.9&&z<=6.7)||(x>=-27&&x<=-9&&z>=6.6&&z<13.5);
+(()=>{const g=new T.Group();sc.add(g);const W='#5b2370';
+ const wall=(w,h,d,x,y,z,c)=>bx(g,w,h,d,c||W,x,y,z);
+ wall(12,4.4,.3,-21,2.2,-6);wall(.3,4.4,12,-27,2.2,0);wall(.3,4.4,12,-15,2.2,0);wall(4.8,4.4,.3,-24.6,2.2,6);wall(4.8,4.4,.3,-17.4,2.2,6);wall(2.4,1.6,.3,-21,3.6,6);
+ const roof=bx(g,12.6,.3,12.6,'#2a0f3a',-21,4.55,0);roof.castShadow=false;
+ bx(g,11.6,.04,11.6,'#3a1450',-21,.03,0);for(let i=0;i<6;i++)bx(g,11.6,.05,.12,'#8a3a9a',-21,.05,-5+i*2);
+ for(const[x,y,z,w,d]of[[-21,3.95,5.84,11.8,.08],[-21,3.95,-5.84,11.8,.08]])bx(g,w,.14,d,'#ff2bd6',x,y,z,1);
+ for(const x of[-24.5,-21,-17.5])for(const z of[-3,2])bx(g,.9,.08,.9,'#fff0b0',x,4.35,z,1);
+ /* biển neon */
+ const cv=document.createElement('canvas');cv.width=512;cv.height=128;const cx=cv.getContext('2d');cx.fillStyle='#14061c';cx.fillRect(0,0,512,128);cx.strokeStyle='#ff2bd6';cx.lineWidth=6;cx.strokeRect(6,6,500,116);cx.fillStyle='#ffd54a';cx.font='bold 54px sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('NEON PALACE',256,52);cx.fillStyle='#ff5ad8';cx.font='bold 26px sans-serif';cx.fillText('🎰  CASINO  (tiền ảo)  🎲',256,98);
+ const sg=new T.Mesh(new T.PlaneGeometry(6.4,1.6),new T.MeshBasicMaterial({map:new T.CanvasTexture(cv)}));sg.position.set(-21,5.5,6.2);g.add(sg);bx(g,6.8,.2,.2,'#ffd54a',-21,6.4,6.2,1);bx(g,6.8,.2,.2,'#ffd54a',-21,4.6,6.2,1);
+ bx(g,2,.04,1.8,'#c0182e',-21,.04,7.1);
+ /* quầy lễ tân + quản lý */
+ bx(g,2.8,1,.8,'#2a0f3a',-24.6,.5,4.2);bx(g,2.9,.1,.9,'#d4a017',-24.6,1.02,4.2);col(-24.6,4.2,2.8,.9);
+ const mg=hum('#f1c27d','#7a1fa2','#222');mg.position.set(-24.6,0,3.3);g.add(mg);
+ /* slot */
+ for(const x of[-25.2,-23.8,-22.4]){bx(g,.9,1.9,.7,'#c01880',x,.95,-4.9);bx(g,.7,.5,.05,'#9ef',x,1.5,-4.52,1);bx(g,.7,.1,.5,'#ffd54a',x,1.05,-4.5);bx(g,.12,.7,.12,'#ddd',x+.55,1.3,-4.8);bx(g,.2,.2,.2,'#e53935',x+.55,1.7,-4.8);col(x,-4.9,1,.8)}
+ /* roulette */
+ bx(g,2.8,.9,1.6,'#0d5a2a',-18.3,.45,-1.6);bx(g,2.9,.1,1.7,'#5a3a1e',-18.3,.92,-1.6);bx(g,.9,.12,.9,'#222',-19,1.0,-1.6);bx(g,.5,.14,.5,'#d4a017',-19,1.06,-1.6);bx(g,.1,.1,.1,'#fff',-19.15,1.16,-1.6,1);col(-18.3,-1.6,3,1.8);
+ for(let i=0;i<6;i++)bx(g,.3,.05,.3,i%2?'#e53935':'#111',-17.6+i*.25,.98,-1.9+(i%2)*.4);
+ /* blackjack */
+ bx(g,2.8,.9,1.4,'#0d5a2a',-22,.45,-1.0);bx(g,2.9,.1,1.5,'#5a3a1e',-22,.92,-1.0);for(let i=0;i<3;i++)bx(g,.3,.02,.42,'#fff',-22.5+i*.5,.99,-1.0);col(-22,-1,2.8,1.4);
+ const dl=hum('#e0b080','#111','#222');dl.position.set(-22,0,-2.5);g.add(dl);
+ /* bảo vệ */
+ const gd=hum('#e0b080','#1a1a24','#1a1a24');gd.position.set(-18.4,0,5.0);gd.rotation.y=Math.PI;g.add(gd);bx(gd,.55,.14,.55,'#1a1a24',0,2.0,0);
+ /* sân trước + cố vấn */
+ bx(g,18,.04,6.9,'#b9b2a2',-18,.025,10.05);for(const px of[-26,-10])bx(g,.3,.5,.3,'#6b4a2a',px,.25,7.2);
+ const ad=hum('#f1c27d','#3a6a8a','#444');ad.position.set(-12.5,0,9.5);ad.rotation.y=-Math.PI/2;g.add(ad);col(-12.5,9.5,.8,.8);
+ STN.push({x:-24.6,z:4.2,r:2.3,g:()=>({l:'Nói chuyện với quản lý Hạnh 🎰',f:()=>{const c=cas();if(!c.talk){c.talk=1;toast('Bà Hạnh: "Thử một ván nhỏ cho vui nhé? Đây chỉ là tiền ảo — và bạn có thể rời đi bất cứ lúc nào."')}CS.tab='lobby';CS.note='';openP('cas')}})},
+  {x:-23.8,z:-4.9,r:2.4,g:()=>({l:'Chơi Slot 🎰',f:()=>{CS.tab='slot';CS.note='';openP('cas')}})},
+  {x:-18.3,z:-1.6,r:2.5,g:()=>({l:'Chơi Roulette 🎡',f:()=>{CS.tab='rlt';CS.note='';openP('cas')}})},
+  {x:-22,z:-1,r:2.5,g:()=>({l:'Chơi Blackjack 🃏',f:()=>{CS.tab='bj';CS.note='';openP('cas')}})},
+  {x:-12.5,z:9.5,r:2.3,g:()=>{const c=cas();return{l:(c.crisis||c.rq)?'Nói chuyện với ông Sáu (cố vấn tài chính) 🌱':'Ông Sáu 💬',f:()=>{if(c.crisis||c.rq){c.met=1;try{save()}catch(e){}CS.tab='rq';openP('cas')}else toast('Ông Sáu: "Chơi có chừng mực nhé. Đừng bao giờ vay tiền để cược."')}}}});
+})();
+const _inRoomC=inRoom;inRoom=function(x,z){return casWalk(x,z)||_inRoomC(x,z)};
+/* phiên chơi: reset khi bước vào sảnh */
+let casIn=0;if(window.__cpsCas)clearInterval(window.__cpsCas);window.__cpsCas=setInterval(()=>{try{const i=casWalkIn(P.x,P.z)?1:0;if(i&&!casIn){const c=cas();c.sess={wag:0,net:0}}casIn=i}catch(e){}},500);
+const _m5c=m5Click;m5Click=function(D){if(D.cas!=null)return casClick(D);return _m5c(D)};
 const WLOCK=W_.lock,PLACES=W_.PLACES,WDOORS=W_.WDOORS,wdCheck=W_.wdCheck,WMAXQ=W_.MAXQ,WX=W_.WX,WN=W_.NPCS;
 function worldWalk(x,z){return W_.walk(x,z)}
 function wTakeSeeker(){return W_.takeSeeker()}
